@@ -3,8 +3,8 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-01 19:51:54
-FilePath     : /my-pyqt/my_ner_editor.py
+LastEditTime : 2022-09-01 22:55:40
+FilePath     : /ALIAnnotator/my_ner_editor.py
 Description  : 
 '''
 
@@ -13,9 +13,34 @@ import sys
 from collections import deque
 
 from loguru import logger
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import (
+    Qt,
+    QFile,
+    QEvent, 
+    QRegExp, 
+    QFileInfo, 
+    QIODevice,
+    QTextStream,
+)
+from PyQt5.QtGui import (
+    QFont,
+    QIcon,
+    QColor,
+    QTextCursor,
+    QKeySequence,
+    QTextCharFormat,
+    QSyntaxHighlighter,
+)
+from PyQt5.QtWidgets import (
+    QWidget,
+    QAction,
+    QTextEdit,
+    QFontDialog,
+    QMessageBox,
+    QFileDialog,
+    QMainWindow,
+    QApplication,
+)
 
 from ui.ner_editor import Ui_NEREditor
 
@@ -44,6 +69,69 @@ from ui.ner_editor import Ui_NEREditor
             print("鼠标中键点击")
 '''
 
+# 人工标注实体
+TAGGEDENTITY = r'\[\@.*?\#.*?\*\](?!\#)'
+
+# 人工标注重合实体标签
+INSIDENESTENTITY= r'\[\@\[\@(?!\[\@).*?\#.*?\*\]\#'
+
+# 系统推荐实体标签
+RECOMMENDENTITY = r'\[\$.*?\#.*?\*\](?!\#)'
+
+# 人工标注实体标签
+goldAndrecomRe = r'\[\@.*?\#.*?\*\](?!\#)'
+
+
+
+class FontHighlighter(QSyntaxHighlighter):
+    
+    rules = []
+    formats = dict()
+    
+    def __init__(self, parent=None):
+        super(FontHighlighter, self).__init__(parent)
+        
+        self.initializeFormats()
+        
+        #! Qt 不支持 .*? 这种非贪婪匹配语法。
+        #! 只要使用了 setMinimal(true) 之后，所有的匹配都会变成非贪婪的。
+        self.taggedEntity = QRegExp(r'\[\@.*\#.*\*\](?!\#)')
+        self.taggedEntity.setMinimal(True)
+        self.recommendEntity = QRegExp(r'\[\$.*\#.*\*\](?!\#)')
+        self.recommendEntity.setMinimal(True)
+        
+        FontHighlighter.rules.append((self.taggedEntity, 'taggedEntity'))
+        FontHighlighter.rules.append((self.recommendEntity, 'recommendEntity'))
+
+    @classmethod
+    def initializeFormats(cls):
+        baseFormat = QTextCharFormat()
+        baseFormat.setFontFamily('黑体')
+        baseFormat.setFontPointSize(18)
+        
+        for name, color in [
+            ['taggedEntity', Qt.darkBlue],
+            ['recommendEntity', Qt.darkGreen]
+        ]:
+            format = QTextCharFormat(baseFormat)
+            format.setForeground(QColor(color))
+            format.setFontWeight(QFont.Bold)
+            # format.setFontItalic(True)
+            cls.formats[name] = format
+    
+    def highlightBlock(self, text: str) -> None:
+        for regex, format in FontHighlighter.rules:
+            i = regex.indexIn(text)
+            while i >= 0:
+                length = regex.matchedLength()
+                self.setFormat(
+                    i,
+                    length,
+                    FontHighlighter.formats[format]
+                )
+                i = regex.indexIn(text, i + length)
+                
+    
 
 class NEREditor(QWidget):
     
@@ -52,17 +140,6 @@ class NEREditor(QWidget):
         
         self.ui = Ui_NEREditor()
         self.ui.setupUi(self)
-        
-        self.entityRe = r'\[\@.*?\#.*?\*\](?!\#)'
-        
-        # 人工标注重合实体标签
-        self.insideNestEntityRe = r'\[\@\[\@(?!\[\@).*?\#.*?\*\]\#'
-        
-        # 系统推荐实体标签
-        self.recommendRe = r'\[\$.*?\#.*?\*\](?!\#)'
-        
-        # 人工标注实体标签
-        self.goldAndrecomRe = r'\[\@.*?\#.*?\*\](?!\#)'
         
         self.backup = deque(maxlen=20)
         self.currentContent = deque(maxlen=1)
@@ -94,21 +171,30 @@ class NEREditor(QWidget):
         }
         
         self.ui.textEdit.setFontFamily('黑体')
-        self.ui.textEdit.setFontPointSize(20)
+        self.ui.textEdit.setFontPointSize(18)
         self.ui.textEdit.setLineWidth(5)
 
         self.ui.openButton.clicked.connect(self.onOpen)
         self.ui.textEdit.setPlaceholderText('文本标注区')
         self.ui.reMapButton.clicked.connect(self.reMap)
         self.ui.quitButton.clicked.connect(self.quit)
+        self.ui.fontSetButton.clicked.connect(self.setFont)
+        self.highlighter = FontHighlighter(self.ui.textEdit.document())
 
     def clearText(self):
         logger.debug(f'Clear text edit.')
 
         self.ui.textEdit.clear()
+        
+    def setFont(self):
+        logger.debug(f'Action Track: set font.')
+
+        font, ok = QFontDialog.getFont()
+        if ok:
+            self.ui.textEdit.setFont(font)
 
     def onOpen(self):
-        logger.debug(f'Action: open file.')
+        logger.debug(f'Action Track: open file.')
         
         # 生成文件对话框对象
         fileDialog = QFileDialog()
@@ -201,7 +287,7 @@ class NEREditor(QWidget):
         self.writeFile(self.filename, content)  
     
     def isTaggedEntity(self, content):
-        entity = re.match(self.entityRe, content.strip())
+        entity = re.match(TAGGEDENTITY, content.strip())
 
         return entity.group() if entity else None
     
@@ -212,7 +298,7 @@ class NEREditor(QWidget):
                 content, 
                 '#', 
                 self.pressCommand[replaceType], 
-                '*]'
+                '*]',
             ])
         else:
             logger.warning(f'Invalid command: {replaceType}!')
