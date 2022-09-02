@@ -3,8 +3,8 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-01 22:55:40
-FilePath     : /ALIAnnotator/my_ner_editor.py
+LastEditTime : 2022-09-02 17:44:57
+FilePath     : /NERAnnotator/my_ner_editor.py
 Description  : 
 '''
 
@@ -110,13 +110,15 @@ class FontHighlighter(QSyntaxHighlighter):
         baseFormat.setFontPointSize(18)
         
         for name, color in [
-            ['taggedEntity', Qt.darkBlue],
-            ['recommendEntity', Qt.darkGreen]
+            ['taggedEntity', QColor(255, 106, 106)],
+            ['recommendEntity', QColor(60, 179, 113)]
         ]:
             format = QTextCharFormat(baseFormat)
-            format.setForeground(QColor(color))
             format.setFontWeight(QFont.Bold)
-            # format.setFontItalic(True)
+            format.setBackground(color)            # 设置背景色
+            # format.setForeground(QColor(color))  # 设置字体色
+            format.setFontWeight(QFont.Bold)
+            format.setFontItalic(True)
             cls.formats[name] = format
     
     def highlightBlock(self, text: str) -> None:
@@ -157,12 +159,18 @@ class NEREditor(QWidget):
         
         # 标注快捷键
         self.allKey = {
-            Qt.Key_0: 0, Qt.Key_1: 1, Qt.Key_2: 2, Qt.Key_3: 3, Qt.Key_4: 4, Qt.Key_5: 5, 
-            Qt.Key_6: 6, Qt.Key_7: 7, Qt.Key_8: 8, Qt.Key_9: 9, Qt.Key_A: 'a', Qt.Key_B: 'b', 
-            Qt.Key_C: 'c', Qt.Key_D: 'd', Qt.Key_E: 'e', Qt.Key_F: 'f', Qt.Key_G: 'g', Qt.Key_H: 'h', 
-            Qt.Key_I: 'i', Qt.Key_J: 'j', Qt.Key_K: 'k', Qt.Key_L: 'l', Qt.Key_M: 'm', Qt.Key_N: 'n', 
-            Qt.Key_O: 'o', Qt.Key_P: 'p', Qt.Key_Q: 'q', Qt.Key_R: 'r', Qt.Key_S: 's', Qt.Key_T: 't', 
-            Qt.Key_U: 'u', Qt.Key_V: 'v', Qt.Key_W: 'w', Qt.Key_X: 'x', Qt.Key_Y: 'y', Qt.Key_Z: 'z'
+            Qt.Key_0: 0, Qt.Key_1: 1, Qt.Key_2: 2, 
+            Qt.Key_3: 3, Qt.Key_4: 4, Qt.Key_5: 5, 
+            Qt.Key_6: 6, Qt.Key_7: 7, Qt.Key_8: 8, 
+            Qt.Key_9: 9, Qt.Key_A: 'a', Qt.Key_B: 'b', 
+            Qt.Key_C: 'c', Qt.Key_D: 'd', Qt.Key_E: 'e',
+            Qt.Key_F: 'f', Qt.Key_G: 'g', Qt.Key_H: 'h', 
+            Qt.Key_I: 'i', Qt.Key_J: 'j', Qt.Key_K: 'k', 
+            Qt.Key_L: 'l', Qt.Key_M: 'm', Qt.Key_N: 'n', 
+            Qt.Key_O: 'o', Qt.Key_P: 'p', Qt.Key_Q: 'q', 
+            Qt.Key_R: 'r', Qt.Key_S: 's', Qt.Key_T: 't', 
+            Qt.Key_U: 'u', Qt.Key_V: 'v', Qt.Key_W: 'w', 
+            Qt.Key_X: 'x', Qt.Key_Y: 'y', Qt.Key_Z: 'z',
         }
         
         self.contrlCommand = {
@@ -173,12 +181,13 @@ class NEREditor(QWidget):
         self.ui.textEdit.setFontFamily('黑体')
         self.ui.textEdit.setFontPointSize(18)
         self.ui.textEdit.setLineWidth(5)
+        self.ui.textEdit.setPlaceholderText('文本标注区')
 
         self.ui.openButton.clicked.connect(self.onOpen)
-        self.ui.textEdit.setPlaceholderText('文本标注区')
         self.ui.reMapButton.clicked.connect(self.reMap)
         self.ui.quitButton.clicked.connect(self.quit)
         self.ui.fontSetButton.clicked.connect(self.setFont)
+        self.ui.useREButton.stateChanged.connect(self.REButtonInfo)
         self.highlighter = FontHighlighter(self.ui.textEdit.document())
 
     def clearText(self):
@@ -202,7 +211,7 @@ class NEREditor(QWidget):
         filename, filetype = fileDialog.getOpenFileName(
             self,
             'open file',
-            '/Volumes/Data/Code/python/others/YEDDA/demotext',
+            './demotext',
             'All Files (*.txt *.ann)'
         )
         
@@ -275,16 +284,48 @@ class NEREditor(QWidget):
             logger.info(f'q: remove entity label.')
         else:
             if len(selectedContent) > 0:
+                # 推荐模型
+                if self.isRecommendButtonChecked():
+                    bellowHalfContent = self.addRecommendContent(selectedContent, bellowHalfContent)
+                
                 selectedContent = self.replaceContent(selectedContent, pressKey)
-        
+        print(bellowHalfContent)   
         content = ''.join([
             aboveHalhContent,
             selectedContent,
             bellowHalfContent
         ])
         
-        # TODO: 推荐模型
         self.writeFile(self.filename, content)  
+        
+    def addRecommendContent(self, entity_name, bellowHalfContent):
+        if (not entity_name) or (not bellowHalfContent):
+            return bellowHalfContent
+        
+        print(entity_name)
+        print(bellowHalfContent)
+        for item in re.finditer(entity_name, bellowHalfContent):
+            print(item.span())
+        
+        return bellowHalfContent
+        
+    
+    def REButtonInfo(self):
+        REButtonInfo = QMessageBox.information(
+            self,
+            '提示',
+            f'Recommend Model {"On" if self.isRecommendButtonChecked() else "Off"}',
+            QMessageBox.Ok,
+            QMessageBox.Ok
+        )
+        
+        return REButtonInfo
+    
+    def isRecommendButtonChecked(self):
+        if self.ui.useREButton.isChecked():
+            return True
+        else:
+            return False
     
     def isTaggedEntity(self, content):
         entity = re.match(TAGGEDENTITY, content.strip())
