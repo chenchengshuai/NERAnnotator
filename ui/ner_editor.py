@@ -129,7 +129,7 @@ class Ui_NEREditor(object):
 
     def retranslateUi(self, NEREditor):
         _translate = QtCore.QCoreApplication.translate
-        NEREditor.setWindowTitle(_translate("NEREditor", "Form"))
+        NEREditor.setWindowTitle(_translate("NEREditor", "NERAnnotator 1.0"))
         self.openButton.setText(_translate("NEREditor", "open"))
         self.reMapButton.setText(_translate("NEREditor", "reMap"))
         self.newMapButton.setText(_translate("NEREditor", "newMap"))
