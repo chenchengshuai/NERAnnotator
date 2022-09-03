@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 22:52:18
+LastEditTime : 2022-09-03 23:02:55
 FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
@@ -121,6 +121,8 @@ class NEREditor(QWidget):
         self._initConfig()
     
     def _initConfig(self):
+        logger.debug(f'Action Track: _initConfig.')
+        
         filename = self.ui.configFileButton.currentText()
         
         try:
@@ -141,9 +143,13 @@ class NEREditor(QWidget):
         self._initGridLayout()
     
     def _loadConfigFiles(self):
+        logger.debug(f'Action Track: _loadConfigFiles.')
+        
         return os.listdir(self.configRootDir)
 
     def _checkConfig(self):
+        logger.debug(f'Action Track: _checkConfig.')
+        
         excluded_tags = {'y', 'q'}
         for shortname, _ in self.pressCommand.items():
             if shortname in excluded_tags:
@@ -157,6 +163,8 @@ class NEREditor(QWidget):
                 exit()
   
     def _clearGridLayout(self):
+        logger.debug(f'Action Track: _clearGridLayout.')
+        
         item_list = list(range(self.ui.gridLayout.count()))
         item_list.reverse()
         
@@ -167,6 +175,8 @@ class NEREditor(QWidget):
                 item.widget().deleteLater()
                 
     def _initGridLayout(self):
+        logger.debug(f'Action Track: _initGridLayout.')
+        
         for idx, (shortcut, e_type) in enumerate(self.pressCommand.items()):
             # initialize label
             label = QLabel(self.ui.groupBox)
@@ -192,14 +202,14 @@ class NEREditor(QWidget):
         self.ui.textEdit.clear()
         
     def setFont(self):
-        logger.debug(f'Action Track: set font.')
+        logger.debug(f'Action Track: setFont.')
 
         font, ok = QFontDialog.getFont()
         if ok:
             self.ui.textEdit.setFont(font)
 
     def onOpen(self):
-        logger.debug(f'Action Track: open file.')
+        logger.debug(f'Action Track: onOpen.')
         
         # 生成文件对话框对象
         fileDialog = QFileDialog()
@@ -218,6 +228,8 @@ class NEREditor(QWidget):
         self.autoLoadNewFile(self.allFilePathCache[0])
         
     def readFile(self, filename):
+        logger.debug(f'Action Tracked: readFile.')
+        
         self.filename = filename
 
         with open(filename) as fin:
@@ -241,6 +253,8 @@ class NEREditor(QWidget):
         self.autoLoadNewFile(filename)  
         
     def loadLastFile(self):
+        logger.debug(f'Action Track: loadLastFile.')
+        
         if self.currentFilePathIndex > 0:
             self.currentFilePathIndex -= 1
             self.autoLoadNewFile(self.allFilePathCache[self.currentFilePathIndex])
@@ -262,6 +276,8 @@ class NEREditor(QWidget):
             )
 
     def loadNextFile(self):
+        logger.debug(f'Action Track: loadNextFile.')
+        
         if self.currentFilePathIndex < self.allFileNum-1:
             self.currentFilePathIndex += 1
             self.autoLoadNewFile(self.allFilePathCache[self.currentFilePathIndex])
@@ -286,6 +302,8 @@ class NEREditor(QWidget):
             self.ui.textEdit.setText(content)
 
     def keyPressEvent(self, event):
+        logger.debug(f'Action Track: keyPressEvent.')
+        
         if event.key() in self.allKey:
             self.textReturnEnter(self.allKey[event.key()])
     
@@ -367,6 +385,8 @@ class NEREditor(QWidget):
             selectedStartIndex (_type_): _description_
             selectedEndIndex (_type_): _description_
         """
+        
+        logger.debug(f'Action Track: processContentForSelected.')
 
         aboveHalhContent = content[: selectedStartIndex]
         bellowHalfContent = content[selectedEndIndex: ]
@@ -412,6 +432,8 @@ class NEREditor(QWidget):
                 在presspressCommand中的key: 替换标签操作
             content (_type_): _description_
         """
+        
+        logger.debug(f'Action Track: processContentForNotSelected.')
         
         # 鼠标所在的block
         currentBlock = self.ui.textEdit.textCursor().block()
@@ -488,6 +510,9 @@ class NEREditor(QWidget):
         Returns:
             _type_: _description_
         """
+        
+        logger.debug(f'Action Track: addRecommendContent.')
+        
         if (not entity_name) or (not bellowHalfContent):
             return bellowHalfContent
 
@@ -526,6 +551,7 @@ class NEREditor(QWidget):
     def isRecommendButtonChecked(self):
         """检测推荐模型是否开启
         """
+        logger.debug(f'Action Track: isRecommendButtonChecked.')
 
         return True if self.ui.useREButton.isChecked() else False
     
@@ -538,6 +564,7 @@ class NEREditor(QWidget):
         Returns:
             tuple: (是否被标注过, 标注结果)
         """
+        logger.debug(f'Action Track: isTaggedEntity.')
         
         entity = re.match(
             '|'.join([TagEnum.TAGGEDENTITY.value, TagEnum.RECOMMENDENTITY.value]), 
@@ -557,6 +584,8 @@ class NEREditor(QWidget):
         Returns:
             _type_: _description_
         """
+        logger.debug(f'Action Track: replaceContent.')
+        
         try:
             content = ''.join([
                 '[@', 
@@ -592,18 +621,21 @@ class NEREditor(QWidget):
     def getCursorIndex(self):
         """获取鼠标位置
         """
+        logger.debug(f'Action Track: getCursorIndex.')
         
         return self.ui.textEdit.textCursor().position()
     
     def getSelectedContent(self):
         """获取鼠标选择的文本
         """
+        logger.debug(f'Action Track: getSelectedContent.')
         
         return self.ui.textEdit.textCursor().selectedText()
     
     def getSelectedContentCursorIndex(self):
         """获取选择文本的起止位置 
         """
+        logger.debug(f'Action Track: getSelectedContentCursorIndex.')
         
         return (
             self.ui.textEdit.textCursor().selectionStart(),
@@ -611,13 +643,14 @@ class NEREditor(QWidget):
         )
 
     def quit(self):
+        logger.debug(f'Action Track: quit.')
+        
         self.close()
  
         
         
         
 app = QApplication(sys.argv)
-# apply_stylesheet(app, theme='default_light')
 ner_editor = NEREditor()
 ner_editor.show()
 sys.exit(app.exec_())
