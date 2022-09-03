@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 19:59:29
+LastEditTime : 2022-09-03 20:10:58
 FilePath     : /NERAnnotator/my_ner_editor.py
 Description  : 
 '''
@@ -481,6 +481,16 @@ class NEREditor(QWidget):
         pass
         
     def addRecommendContent(self, entity_name, pressKey, bellowHalfContent):
+        """_summary_
+
+        Args:
+            entity_name (_type_): _description_
+            pressKey (_type_): _description_
+            bellowHalfContent (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         if (not entity_name) or (not bellowHalfContent):
             return bellowHalfContent
 
@@ -503,6 +513,9 @@ class NEREditor(QWidget):
         return bellowHalfContent
         
     def REButtonInfo(self):
+        """推荐模型按钮提示信息
+        """
+
         REButtonInfo = QMessageBox.information(
             self,
             '提示',
@@ -514,9 +527,21 @@ class NEREditor(QWidget):
         return REButtonInfo
     
     def isRecommendButtonChecked(self):
+        """检测推荐模型是否开启
+        """
+
         return True if self.ui.useREButton.isChecked() else False
     
     def isTaggedEntity(self, content):
+        """检查content是否已被标注过，包括人工标注和推荐模型标注
+
+        Args:
+            content (str): 待检测字符串
+
+        Returns:
+            tuple: (是否被标注过, 标注结果)
+        """
+        
         entity = re.match(
             '|'.join([TagEnum.TAGGEDENTITY.value, TagEnum.RECOMMENDENTITY.value]), 
             content.strip()
@@ -525,6 +550,16 @@ class NEREditor(QWidget):
         return (True, entity.group()) if entity else (False, None)
     
     def replaceContent(self, content, pressKey, entityType=''):
+        """生成标注格式
+
+        Args:
+            content (str): 实体
+            pressKey (str): 实体类型对应的键值
+            entityType (str, optional): 实体类型. Defaults to ''.
+
+        Returns:
+            _type_: _description_
+        """
         try:
             content = ''.join([
                 '[@', 
@@ -542,6 +577,8 @@ class NEREditor(QWidget):
         pass
         
     def pushToBackup(self):
+        """备份
+        """
         logger.debug(f'Action Track: pushToBackup.')
         
         content = self.getContent()
@@ -550,15 +587,27 @@ class NEREditor(QWidget):
         self.backup.append([content, cursorPosition])
         
     def getContent(self):
+        """获取编辑框文本
+        """
+        
         return self.ui.textEdit.toPlainText()
         
     def getCursorIndex(self):
+        """获取鼠标位置
+        """
+        
         return self.ui.textEdit.textCursor().position()
     
     def getSelectedContent(self):
+        """获取鼠标选择的文本
+        """
+        
         return self.ui.textEdit.textCursor().selectedText()
     
     def getSelectedContentCursorIndex(self):
+        """获取选择文本的起止位置 
+        """
+        
         return (
             self.ui.textEdit.textCursor().selectionStart(),
             self.ui.textEdit.textCursor().selectionEnd()
