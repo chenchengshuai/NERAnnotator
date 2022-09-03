@@ -3,12 +3,12 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 21:42:19
+LastEditTime : 2022-09-03 22:52:18
 FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
 
-from fileinput import filename
+
 import os
 import re
 import sys
@@ -52,9 +52,6 @@ from ui.ner_editor import Ui_NEREditor
 from utils.font_highlighter import FontHighlighter
 
 
-# 人工标注实体标签
-goldAndrecomRe = r'\[\@.*?\#.*?\*\](?!\#)'
-
 
 class TagEnum(Enum):
     TAGGEDENTITY     = r'\[\@.*?\#.*?\*\](?!\#)'
@@ -72,9 +69,10 @@ class NEREditor(QWidget):
         
         self.ui = Ui_NEREditor()
         self.ui.setupUi(self)
-        
-        self.unTaggedfilePathCache = deque()
-        self.taggedFilePathCache = deque()
+
+        self.allFilePathCache = []
+        self.allFileNum = -1
+        self.currentFilePathIndex = -1
         self.backup = deque(maxlen=20)
         self.currentContent = deque(maxlen=1)
         
@@ -188,14 +186,6 @@ class NEREditor(QWidget):
             lineEdit.setObjectName("lineEdit")
             self.ui.gridLayout.addWidget(lineEdit, idx, 1, 1, 1)
 
-    def _checkSelectedContent(self, selectedContent):
-        """不允许待标注文本内包含已标注实体
-
-        Args:
-            selectedContent (_type_): _description_
-        """
-        pass  
-
     def clearText(self):
         logger.debug(f'Clear text edit.')
 
@@ -214,12 +204,6 @@ class NEREditor(QWidget):
         # 生成文件对话框对象
         fileDialog = QFileDialog()
 
-        # filename, filetype = fileDialog.getOpenFileName(
-        #     self,
-        #     'Open file',
-        #     './demotext',
-        #     'All Files (*.txt *.ann)'
-        # )
         filenames, filetype = fileDialog.getOpenFileNames(
             self,
             'Open file',
@@ -227,13 +211,11 @@ class NEREditor(QWidget):
             'All Files (*.txt *.ann)'
         )
         
-        self.unTaggedfilePathCache.extend(sorted(filenames))
-        # print(self.unTaggedfilePathCache)
-        # print(self.taggedFilePathCache)
-        # print(self.unTaggedfilePathCache.popleft())
-        # exit()
+        self.allFilePathCache = list(sorted(filenames))
+        self.currentFilePathIndex += 1
+        self.allFileNum = len(filenames)
 
-        self.autoLoadNewFile(self.unTaggedfilePathCache.popleft())
+        self.autoLoadNewFile(self.allFilePathCache[0])
         
     def readFile(self, filename):
         self.filename = filename
@@ -251,15 +233,38 @@ class NEREditor(QWidget):
         
         with open(filename, 'w') as fout:
             fout.write(content)
-            
+        
+        # 更新文件名称  
+        if not self.allFilePathCache[self.currentFilePathIndex].endswith('.ann'):
+            self.allFilePathCache[self.currentFilePathIndex] += '.ann'
+
         self.autoLoadNewFile(filename)  
         
     def loadLastFile(self):
-        pass
-    
+        if self.currentFilePathIndex > 0:
+            self.currentFilePathIndex -= 1
+            self.autoLoadNewFile(self.allFilePathCache[self.currentFilePathIndex])
+        elif self.currentFilePathIndex == 0:
+            QMessageBox.information(
+                self,
+                '提示信息',
+                '已经是第一个文件！',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                '提示信息',
+                '先点击open按钮加载文件！',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+
     def loadNextFile(self):
-        if len(self.unTaggedfilePathCache) != 0:
-            self.autoLoadNewFile(self.unTaggedfilePathCache.popleft())
+        if self.currentFilePathIndex < self.allFileNum-1:
+            self.currentFilePathIndex += 1
+            self.autoLoadNewFile(self.allFilePathCache[self.currentFilePathIndex])
         else:
             QMessageBox.information(
                 self,
@@ -274,7 +279,10 @@ class NEREditor(QWidget):
         
         if filename:
             content = self.readFile(filename)
-            self.ui.fileLabel.setText(f'File: {filename}')
+            self.ui.fileLabel.setText(
+                f'{self.currentFilePathIndex+1}/{self.allFileNum} '
+                f'File: {filename}'
+            )
             self.ui.textEdit.setText(content)
 
     def keyPressEvent(self, event):
@@ -305,6 +313,9 @@ class NEREditor(QWidget):
         selectedStartIndex, selectedEndIndex = self.getSelectedContentCursorIndex()
         
         if selectedContent:
+            if not self._checkSelectedContent(selectedContent):
+                return 
+
             self.processContentForSelected(
                 pressKey,
                 content,
@@ -317,11 +328,25 @@ class NEREditor(QWidget):
                 pressKey,
                 content,
             )
-        # print(self.ui.textEdit.textCursor().position())
-        # c = self.ui.textEdit.textCursor()
-        # c.movePosition(QTextCursor.EndOfWord)
-        # self.ui.textEdit.setTextCursor(c)
 
+    def _checkSelectedContent(self, selectedContent):
+        """不允许待标注文本内包含已标注实体
+
+        Args:
+            selectedContent (_type_): _description_
+        """
+        print(self.__repr__())
+        logger.debug(f'Action Track: _checkSelectedContent')
+
+        if '[' in selectedContent \
+            or ']' in selectedContent \
+            or '\n' in selectedContent \
+            or '\r' in selectedContent:
+            logger.warning(f'unfair selected content.')
+            return None
+        
+        return selectedContent 
+    
     def processContentForSelected(
         self, 
         pressKey, 
@@ -592,6 +617,7 @@ class NEREditor(QWidget):
         
         
 app = QApplication(sys.argv)
+# apply_stylesheet(app, theme='default_light')
 ner_editor = NEREditor()
 ner_editor.show()
 sys.exit(app.exec_())
