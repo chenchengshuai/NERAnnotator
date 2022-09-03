@@ -1,0 +1,6 @@
+certifi==2022.6.15
+loguru==0.6.0
+pip==22.1.2
+PyQt5==5.15.7
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.11.0
