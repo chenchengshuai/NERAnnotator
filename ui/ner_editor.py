@@ -92,8 +92,6 @@ class Ui_NEREditor(object):
         
         self.gridLayout = QtWidgets.QGridLayout(self.groupBox)
         self.gridLayout.setObjectName("gridLayout")
-        
-        self.initLabelMap(NEREditor)
 
         self.verticalLayout_2.addWidget(self.groupBox)
         self.verticalLayout = QtWidgets.QVBoxLayout()
@@ -116,7 +114,7 @@ class Ui_NEREditor(object):
         self.configFileButton.setMaximumSize(QtCore.QSize(91, 16777215))
         self.configFileButton.setMouseTracking(False)
         self.configFileButton.setObjectName("configFileButton")
-        self.configFileButton.addItem("")
+        # self.configFileButton.addItem("")
         self.verticalLayout.addWidget(self.configFileButton, 0, QtCore.Qt.AlignHCenter)
         self.verticalLayout_2.addLayout(self.verticalLayout)
         self.verticalLayout_2.setStretch(0, 8)
@@ -139,28 +137,6 @@ class Ui_NEREditor(object):
         self.fileLabel.setText(_translate("NEREditor", "文件"))
         self.groupBox.setTitle(_translate("NEREditor", "命名实体标签"))
         self.label_8.setText(_translate("NEREditor", "标签配置文件"))
-        self.configFileButton.setItemText(0, _translate("NEREditor", "default.config"))
-        
-    def initLabelMap(self, NEREditor, config_path='./config/default.config'):
-        with open(config_path) as fin:
-            config_json = json.load(fin)
-            
-        for idx, (shortcut, e_type) in enumerate(config_json.items()):
-            # initialize label
-            label = QtWidgets.QLabel(self.groupBox)
-            label.setObjectName(f'{shortcut}')
-            label.setText(f'{shortcut}')
-            self.gridLayout.addWidget(label, idx, 0, 1, 1)
+        # self.configFileButton.setItemText(0, _translate("NEREditor", "default.config"))
 
-            # initialize lineedit
-            lineEdit = QtWidgets.QLineEdit(self.groupBox)
-            font = QtGui.QFont()
-            font.setBold(True)
-            font.setWeight(75)
-            font.setKerning(True)
-            lineEdit.setFont(font)
-            lineEdit.setText(f'{e_type}')
-            lineEdit.setReadOnly(True)
-            lineEdit.setObjectName("lineEdit")
-            self.gridLayout.addWidget(lineEdit, idx, 1, 1, 1)
 
