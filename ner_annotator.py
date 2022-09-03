@@ -3,11 +3,12 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 20:10:58
-FilePath     : /NERAnnotator/my_ner_editor.py
+LastEditTime : 2022-09-03 21:42:19
+FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
 
+from fileinput import filename
 import os
 import re
 import sys
@@ -48,17 +49,8 @@ from PyQt5.QtWidgets import (
 )
 
 from ui.ner_editor import Ui_NEREditor
+from utils.font_highlighter import FontHighlighter
 
-
-
-# # 人工标注实体
-# TAGGEDENTITY = r'\[\@.*?\#.*?\*\](?!\#)'
-
-# # 人工标注重合实体标签
-# INSIDENESTENTITY= r'\[\@\[\@(?!\[\@).*?\#.*?\*\]\#'
-
-# # 系统推荐实体标签
-# RECOMMENDENTITY = r'\[\$.*?\#.*?\*\](?!\#)'
 
 # 人工标注实体标签
 goldAndrecomRe = r'\[\@.*?\#.*?\*\](?!\#)'
@@ -67,63 +59,9 @@ goldAndrecomRe = r'\[\@.*?\#.*?\*\](?!\#)'
 class TagEnum(Enum):
     TAGGEDENTITY     = r'\[\@.*?\#.*?\*\](?!\#)'
     RECOMMENDENTITY  = r'\[\$.*?\#.*?\*\](?!\#)'
+    GOLDANDRECOMRE   = r'\[\@.*?\#.*?\*\](?!\#)'
     INSIDENESTENTITY = r'\[\@\[\@(?!\[\@).*?\#.*?\*\]\#'
 
-
-
-class FontHighlighter(QSyntaxHighlighter):
-    """字体高亮类
-    """
-    
-    rules = []
-    formats = dict()
-    
-    def __init__(self, parent=None):
-        super(FontHighlighter, self).__init__(parent)
-        
-        self.initializeFormats()
-        
-        #! Qt 不支持 .*? 这种非贪婪匹配语法。
-        #! 只要使用了 setMinimal(true) 之后，所有的匹配都会变成非贪婪的。
-        self.taggedEntity = QRegExp(r'\[\@.*\#.*\*\](?!\#)')
-        self.taggedEntity.setMinimal(True)
-        self.recommendEntity = QRegExp(r'\[\$.*\#.*\*\](?!\#)')
-        self.recommendEntity.setMinimal(True)
-        
-        FontHighlighter.rules.append((self.taggedEntity, 'taggedEntity'))
-        FontHighlighter.rules.append((self.recommendEntity, 'recommendEntity'))
-
-    @classmethod
-    def initializeFormats(cls):
-        baseFormat = QTextCharFormat()
-        baseFormat.setFontFamily('黑体')
-        baseFormat.setFontPointSize(18)
-        
-        for name, color in [
-            ['taggedEntity', QColor(255, 106, 106)],
-            ['recommendEntity', QColor(60, 179, 113)]
-        ]:
-            format = QTextCharFormat(baseFormat)
-            format.setFontWeight(QFont.Bold)
-            format.setBackground(color)            # 设置背景色
-            # format.setForeground(QColor(color))  # 设置字体色
-            format.setFontWeight(QFont.Bold)
-            format.setFontItalic(True)
-            cls.formats[name] = format
-    
-    def highlightBlock(self, text: str) -> None:
-        for regex, format in FontHighlighter.rules:
-            i = regex.indexIn(text)
-            while i >= 0:
-                length = regex.matchedLength()
-                self.setFormat(
-                    i,
-                    length,
-                    FontHighlighter.formats[format]
-                )
-                i = regex.indexIn(text, i + length)
-                
-    
 
 class NEREditor(QWidget):
     
@@ -135,6 +73,8 @@ class NEREditor(QWidget):
         self.ui = Ui_NEREditor()
         self.ui.setupUi(self)
         
+        self.unTaggedfilePathCache = deque()
+        self.taggedFilePathCache = deque()
         self.backup = deque(maxlen=20)
         self.currentContent = deque(maxlen=1)
         
@@ -173,11 +113,12 @@ class NEREditor(QWidget):
         self.highlighter = FontHighlighter(self.ui.textEdit.document())
        
         self.ui.openButton.clicked.connect(self.onOpen)
-        # self.ui.reMapButton.clicked.connect(self.reMap)
         self.ui.quitButton.clicked.connect(self.quit)
         self.ui.fontSetButton.clicked.connect(self.setFont)
         self.ui.configFileButton.activated.connect(self._initConfig)
         self.ui.useREButton.stateChanged.connect(self.REButtonInfo)
+        self.ui.lastFileButton.clicked.connect(self.loadLastFile)
+        self.ui.nextFileButton.clicked.connect(self.loadNextFile)
         
         self._initConfig()
     
@@ -273,14 +214,26 @@ class NEREditor(QWidget):
         # 生成文件对话框对象
         fileDialog = QFileDialog()
 
-        filename, filetype = fileDialog.getOpenFileName(
+        # filename, filetype = fileDialog.getOpenFileName(
+        #     self,
+        #     'Open file',
+        #     './demotext',
+        #     'All Files (*.txt *.ann)'
+        # )
+        filenames, filetype = fileDialog.getOpenFileNames(
             self,
             'Open file',
             './demotext',
             'All Files (*.txt *.ann)'
         )
+        
+        self.unTaggedfilePathCache.extend(sorted(filenames))
+        # print(self.unTaggedfilePathCache)
+        # print(self.taggedFilePathCache)
+        # print(self.unTaggedfilePathCache.popleft())
+        # exit()
 
-        self.autoLoadNewFile(filename)
+        self.autoLoadNewFile(self.unTaggedfilePathCache.popleft())
         
     def readFile(self, filename):
         self.filename = filename
@@ -300,6 +253,21 @@ class NEREditor(QWidget):
             fout.write(content)
             
         self.autoLoadNewFile(filename)  
+        
+    def loadLastFile(self):
+        pass
+    
+    def loadNextFile(self):
+        if len(self.unTaggedfilePathCache) != 0:
+            self.autoLoadNewFile(self.unTaggedfilePathCache.popleft())
+        else:
+            QMessageBox.information(
+                self,
+                '提示信息',
+                '已经是最后一个文件！',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
     
     def autoLoadNewFile(self, filename):
         logger.debug(f'Action Track: autoLoadNewFile.')
@@ -349,6 +317,10 @@ class NEREditor(QWidget):
                 pressKey,
                 content,
             )
+        # print(self.ui.textEdit.textCursor().position())
+        # c = self.ui.textEdit.textCursor()
+        # c.movePosition(QTextCursor.EndOfWord)
+        # self.ui.textEdit.setTextCursor(c)
 
     def processContentForSelected(
         self, 
