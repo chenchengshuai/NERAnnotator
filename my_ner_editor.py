@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 19:19:49
+LastEditTime : 2022-09-03 19:59:29
 FilePath     : /NERAnnotator/my_ner_editor.py
 Description  : 
 '''
@@ -345,7 +345,7 @@ class NEREditor(QWidget):
                 selectedEndIndex
             )
         else:
-            self.processContentFotNotSelected(
+            self.processContentForNotSelected(
                 pressKey,
                 content,
             )
@@ -400,7 +400,7 @@ class NEREditor(QWidget):
             
         self.writeFile(self.filename, content)
     
-    def processContentFotNotSelected(
+    def processContentForNotSelected(
         self, 
         pressKey,
         content,      
