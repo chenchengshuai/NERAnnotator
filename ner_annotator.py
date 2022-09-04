@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 23:02:55
+LastEditTime : 2022-09-04 09:38:04
 FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
@@ -214,18 +214,20 @@ class NEREditor(QWidget):
         # 生成文件对话框对象
         fileDialog = QFileDialog()
 
-        filenames, filetype = fileDialog.getOpenFileNames(
+        filenames, ok = fileDialog.getOpenFileNames(
             self,
             'Open file',
             './demotext',
             'All Files (*.txt *.ann)'
         )
         
-        self.allFilePathCache = list(sorted(filenames))
-        self.currentFilePathIndex += 1
-        self.allFileNum = len(filenames)
+        logger.debug(f'onOpen mode: {ok}')
+        if ok:
+            self.allFilePathCache = list(sorted(filenames))
+            self.currentFilePathIndex += 1
+            self.allFileNum = len(filenames)
 
-        self.autoLoadNewFile(self.allFilePathCache[0])
+            self.autoLoadNewFile(self.allFilePathCache[0])
         
     def readFile(self, filename):
         logger.debug(f'Action Tracked: readFile.')
@@ -334,7 +336,7 @@ class NEREditor(QWidget):
             if not self._checkSelectedContent(selectedContent):
                 return 
 
-            self.processContentForSelected(
+            content = self.processContentForSelected(
                 pressKey,
                 content,
                 selectedContent,
@@ -342,10 +344,13 @@ class NEREditor(QWidget):
                 selectedEndIndex
             )
         else:
-            self.processContentForNotSelected(
+            content = self.processContentForNotSelected(
                 pressKey,
                 content,
             )
+        
+        if content:
+            self.writeFile(self.filename, content)
 
     def _checkSelectedContent(self, selectedContent):
         """不允许待标注文本内包含已标注实体
@@ -415,7 +420,7 @@ class NEREditor(QWidget):
                 bellowHalfContent
             ])
             
-        self.writeFile(self.filename, content)
+        return content
     
     def processContentForNotSelected(
         self, 
@@ -491,7 +496,7 @@ class NEREditor(QWidget):
                 bellowHalfBlockContent,
             ])
                 
-            self.writeFile(self.filename, content)    
+            return content 
   
     def confirmTaggedEntity(self):
         pass
