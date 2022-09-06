@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-06 21:28:03
+LastEditTime : 2022-09-06 22:33:21
 FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
@@ -52,12 +52,20 @@ from ui.ner_editor import Ui_NEREditor
 from utils.font_highlighter import FontHighlighter
 
 
+logger.add(
+    'log/ner_annotator_{time}.log',
+    rotation='50MB',
+    encoding='utf-8',
+    enqueue=True,
+    compression='zip',
+    retention='1 month'
+)
+
+
 
 class TagEnum(Enum):
     TAGGEDENTITY     = r'\[\@.*?\#.*?\*\](?!\#)'
     RECOMMENDENTITY  = r'\[\$.*?\#.*?\*\](?!\#)'
-    GOLDANDRECOMRE   = r'\[\@.*?\#.*?\*\](?!\#)'
-    INSIDENESTENTITY = r'\[\@\[\@(?!\[\@).*?\#.*?\*\]\#'
 
 
 class NEREditor(QWidget):
@@ -93,12 +101,7 @@ class NEREditor(QWidget):
             Qt.Key_U: 'u', Qt.Key_V: 'v', Qt.Key_W: 'w', 
             Qt.Key_X: 'x', Qt.Key_Y: 'y', Qt.Key_Z: 'z',
         }
-        
-        self.contrlCommand = {
-            'q': 'unTag',
-            'ctrl+z': 'undo'
-        }
-        
+
         # 设置鼠标指针样式
         self.setCursor(Qt.UpArrowCursor) 
         # 设置字体
@@ -145,7 +148,7 @@ class NEREditor(QWidget):
     def _loadConfigFiles(self):
         logger.debug(f'Action Track: _loadConfigFiles.')
         
-        return os.listdir(self.configRootDir)
+        return sorted(os.listdir(self.configRootDir))
 
     def _checkConfig(self):
         logger.debug(f'Action Track: _checkConfig.')
@@ -165,12 +168,12 @@ class NEREditor(QWidget):
     def _clearGridLayout(self):
         logger.debug(f'Action Track: _clearGridLayout.')
         
-        item_list = list(range(self.ui.gridLayout.count()))
+        item_list = list(range(self.ui.labelGridLayout.count()))
         item_list.reverse()
         
         for i in item_list:
-            item = self.ui.gridLayout.itemAt(i)
-            self.ui.gridLayout.removeItem(item)
+            item = self.ui.labelGridLayout.itemAt(i)
+            self.ui.labelGridLayout.removeItem(item)
             if item.widget():
                 item.widget().deleteLater()
                 
@@ -182,7 +185,7 @@ class NEREditor(QWidget):
             label = QLabel(self.ui.groupBox)
             label.setObjectName(f'{shortcut}')
             label.setText(f'{shortcut}')
-            self.ui.gridLayout.addWidget(label, idx, 0, 1, 1)
+            self.ui.labelGridLayout.addWidget(label, idx, 0, 1, 1)
 
             # initialize lineedit
             lineEdit = QLineEdit(self.ui.groupBox)
@@ -194,7 +197,7 @@ class NEREditor(QWidget):
             lineEdit.setText(f'{e_type}')
             lineEdit.setReadOnly(True)
             lineEdit.setObjectName("lineEdit")
-            self.ui.gridLayout.addWidget(lineEdit, idx, 1, 1, 1)
+            self.ui.labelGridLayout.addWidget(lineEdit, idx, 1, 1, 1)
 
     def clearText(self):
         logger.debug(f'Clear text edit.')
@@ -501,12 +504,6 @@ class NEREditor(QWidget):
             ])
                 
             return content 
-  
-    def confirmTaggedEntity(self):
-        pass
-    
-    def cancelTaggedEntity(self):
-        pass
         
     def addRecommendContent(self, entity_name, pressKey, bellowHalfContent):
         """_summary_
