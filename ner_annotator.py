@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-04 09:38:04
+LastEditTime : 2022-09-06 21:28:03
 FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
@@ -71,10 +71,10 @@ class NEREditor(QWidget):
         self.ui.setupUi(self)
 
         self.allFilePathCache = []
-        self.allFileNum = -1
+        self.allFileNum = 0
         self.currentFilePathIndex = -1
         self.backup = deque(maxlen=20)
-        self.currentContent = deque(maxlen=1)
+        # self.currentContent = deque(maxlen=1)
         
         self.pressCommand = {}
         
@@ -107,7 +107,7 @@ class NEREditor(QWidget):
         self.ui.textEdit.setFontPointSize(18)
         self.ui.textEdit.setPlaceholderText('文本标注区')
         self.ui.configFileButton.addItems(self._loadConfigFiles())
-        self.ui.textEdit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.ui.textEdit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.highlighter = FontHighlighter(self.ui.textEdit.document())
        
         self.ui.openButton.clicked.connect(self.onOpen)
@@ -237,7 +237,7 @@ class NEREditor(QWidget):
         with open(filename) as fin:
             return fin.read()
         
-    def writeFile(self, filename, content):
+    def writeFile(self, filename, content, scrollBarValue):
         logger.debug(f'Action Tracked: writeFile.')
         
         assert len(filename) > 0, f'Cannot write to empty file!'
@@ -252,7 +252,7 @@ class NEREditor(QWidget):
         if not self.allFilePathCache[self.currentFilePathIndex].endswith('.ann'):
             self.allFilePathCache[self.currentFilePathIndex] += '.ann'
 
-        self.autoLoadNewFile(filename)  
+        self.autoLoadNewFile(filename, scrollBarValue)  
         
     def loadLastFile(self):
         logger.debug(f'Action Track: loadLastFile.')
@@ -292,7 +292,7 @@ class NEREditor(QWidget):
                 QMessageBox.Ok,
             )
     
-    def autoLoadNewFile(self, filename):
+    def autoLoadNewFile(self, filename, scrollBarValue=0):
         logger.debug(f'Action Track: autoLoadNewFile.')
         
         if filename:
@@ -302,6 +302,7 @@ class NEREditor(QWidget):
                 f'File: {filename}'
             )
             self.ui.textEdit.setText(content)
+            self.ui.textEdit.verticalScrollBar().setValue(scrollBarValue)
 
     def keyPressEvent(self, event):
         logger.debug(f'Action Track: keyPressEvent.')
@@ -349,8 +350,11 @@ class NEREditor(QWidget):
                 content,
             )
         
+        # 获取滚动条位置
+        scrollBarValue = self.ui.textEdit.verticalScrollBar().value()
+        
         if content:
-            self.writeFile(self.filename, content)
+            self.writeFile(self.filename, content, scrollBarValue)
 
     def _checkSelectedContent(self, selectedContent):
         """不允许待标注文本内包含已标注实体
@@ -358,7 +362,7 @@ class NEREditor(QWidget):
         Args:
             selectedContent (_type_): _description_
         """
-        print(self.__repr__())
+        
         logger.debug(f'Action Track: _checkSelectedContent')
 
         if '[' in selectedContent \
@@ -412,14 +416,14 @@ class NEREditor(QWidget):
                 )
             selectedContent = self.replaceContent(selectedContent, pressKey)
         else:
-            return 
-        
+            return
+
         content = ''.join([
                 aboveHalhContent,
                 selectedContent,
                 bellowHalfContent
             ])
-            
+
         return content
     
     def processContentForNotSelected(
