@@ -3,7 +3,7 @@
 '''
 Date         : 2022-08-27 09:55:05
 LastEditors  : Chen Chengshuai
-LastEditTime : 2022-09-03 23:02:55
+LastEditTime : 2022-09-07 22:19:02
 FilePath     : /NERAnnotator/ner_annotator.py
 Description  : 
 '''
@@ -15,6 +15,7 @@ import sys
 import json
 from enum import Enum
 from collections import deque
+from xml.sax.handler import EntityResolver
 
 from loguru import logger
 from PyQt5.QtCore import (
@@ -52,12 +53,20 @@ from ui.ner_editor import Ui_NEREditor
 from utils.font_highlighter import FontHighlighter
 
 
+logger.add(
+    'log/ner_annotator_{time}.log',
+    rotation='50MB',
+    encoding='utf-8',
+    enqueue=True,
+    compression='zip',
+    retention='1 month'
+)
+
+
 
 class TagEnum(Enum):
     TAGGEDENTITY     = r'\[\@.*?\#.*?\*\](?!\#)'
     RECOMMENDENTITY  = r'\[\$.*?\#.*?\*\](?!\#)'
-    GOLDANDRECOMRE   = r'\[\@.*?\#.*?\*\](?!\#)'
-    INSIDENESTENTITY = r'\[\@\[\@(?!\[\@).*?\#.*?\*\]\#'
 
 
 class NEREditor(QWidget):
@@ -70,11 +79,12 @@ class NEREditor(QWidget):
         self.ui = Ui_NEREditor()
         self.ui.setupUi(self)
 
+        self.filename = None
         self.allFilePathCache = []
-        self.allFileNum = -1
+        self.allFileNum = 0
         self.currentFilePathIndex = -1
         self.backup = deque(maxlen=20)
-        self.currentContent = deque(maxlen=1)
+        # self.currentContent = deque(maxlen=1)
         
         self.pressCommand = {}
         
@@ -93,12 +103,7 @@ class NEREditor(QWidget):
             Qt.Key_U: 'u', Qt.Key_V: 'v', Qt.Key_W: 'w', 
             Qt.Key_X: 'x', Qt.Key_Y: 'y', Qt.Key_Z: 'z',
         }
-        
-        self.contrlCommand = {
-            'q': 'unTag',
-            'ctrl+z': 'undo'
-        }
-        
+
         # 设置鼠标指针样式
         self.setCursor(Qt.UpArrowCursor) 
         # 设置字体
@@ -107,14 +112,16 @@ class NEREditor(QWidget):
         self.ui.textEdit.setFontPointSize(18)
         self.ui.textEdit.setPlaceholderText('文本标注区')
         self.ui.configFileButton.addItems(self._loadConfigFiles())
-        self.ui.textEdit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.ui.textEdit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.highlighter = FontHighlighter(self.ui.textEdit.document())
        
         self.ui.openButton.clicked.connect(self.onOpen)
         self.ui.quitButton.clicked.connect(self.quit)
         self.ui.fontSetButton.clicked.connect(self.setFont)
+        self.ui.exportButton.clicked.connect(self.generateSequenceFile)
         self.ui.configFileButton.activated.connect(self._initConfig)
         self.ui.useREButton.stateChanged.connect(self.REButtonInfo)
+        self.ui.splitSentButton.clicked.connect(self.splitSent)
         self.ui.lastFileButton.clicked.connect(self.loadLastFile)
         self.ui.nextFileButton.clicked.connect(self.loadNextFile)
         
@@ -145,7 +152,7 @@ class NEREditor(QWidget):
     def _loadConfigFiles(self):
         logger.debug(f'Action Track: _loadConfigFiles.')
         
-        return os.listdir(self.configRootDir)
+        return sorted(os.listdir(self.configRootDir))
 
     def _checkConfig(self):
         logger.debug(f'Action Track: _checkConfig.')
@@ -165,12 +172,12 @@ class NEREditor(QWidget):
     def _clearGridLayout(self):
         logger.debug(f'Action Track: _clearGridLayout.')
         
-        item_list = list(range(self.ui.gridLayout.count()))
+        item_list = list(range(self.ui.gridLayout_4.count()))
         item_list.reverse()
         
         for i in item_list:
-            item = self.ui.gridLayout.itemAt(i)
-            self.ui.gridLayout.removeItem(item)
+            item = self.ui.gridLayout_4.itemAt(i)
+            self.ui.gridLayout_4.removeItem(item)
             if item.widget():
                 item.widget().deleteLater()
                 
@@ -178,14 +185,15 @@ class NEREditor(QWidget):
         logger.debug(f'Action Track: _initGridLayout.')
         
         for idx, (shortcut, e_type) in enumerate(self.pressCommand.items()):
+            shortcut = shortcut.upper()
             # initialize label
-            label = QLabel(self.ui.groupBox)
+            label = QLabel(self.ui.labelGroupBox)
             label.setObjectName(f'{shortcut}')
             label.setText(f'{shortcut}')
-            self.ui.gridLayout.addWidget(label, idx, 0, 1, 1)
+            self.ui.gridLayout_4.addWidget(label, idx, 0, 1, 1)
 
             # initialize lineedit
-            lineEdit = QLineEdit(self.ui.groupBox)
+            lineEdit = QLineEdit(self.ui.labelGroupBox)
             font = QFont()
             font.setBold(True)
             font.setWeight(75)
@@ -194,7 +202,7 @@ class NEREditor(QWidget):
             lineEdit.setText(f'{e_type}')
             lineEdit.setReadOnly(True)
             lineEdit.setObjectName("lineEdit")
-            self.ui.gridLayout.addWidget(lineEdit, idx, 1, 1, 1)
+            self.ui.gridLayout_4.addWidget(lineEdit, idx, 1, 1, 1)
 
     def clearText(self):
         logger.debug(f'Clear text edit.')
@@ -214,18 +222,20 @@ class NEREditor(QWidget):
         # 生成文件对话框对象
         fileDialog = QFileDialog()
 
-        filenames, filetype = fileDialog.getOpenFileNames(
+        filenames, ok = fileDialog.getOpenFileNames(
             self,
             'Open file',
             './demotext',
             'All Files (*.txt *.ann)'
         )
         
-        self.allFilePathCache = list(sorted(filenames))
-        self.currentFilePathIndex += 1
-        self.allFileNum = len(filenames)
+        logger.debug(f'onOpen mode: {ok}')
+        if ok:
+            self.allFilePathCache = list(sorted(filenames))
+            self.currentFilePathIndex += 1
+            self.allFileNum = len(filenames)
 
-        self.autoLoadNewFile(self.allFilePathCache[0])
+            self.autoLoadNewFile(self.allFilePathCache[0])
         
     def readFile(self, filename):
         logger.debug(f'Action Tracked: readFile.')
@@ -235,7 +245,7 @@ class NEREditor(QWidget):
         with open(filename) as fin:
             return fin.read()
         
-    def writeFile(self, filename, content):
+    def writeFile(self, filename, content, scrollBarValue):
         logger.debug(f'Action Tracked: writeFile.')
         
         assert len(filename) > 0, f'Cannot write to empty file!'
@@ -250,7 +260,7 @@ class NEREditor(QWidget):
         if not self.allFilePathCache[self.currentFilePathIndex].endswith('.ann'):
             self.allFilePathCache[self.currentFilePathIndex] += '.ann'
 
-        self.autoLoadNewFile(filename)  
+        self.autoLoadNewFile(filename, scrollBarValue)  
         
     def loadLastFile(self):
         logger.debug(f'Action Track: loadLastFile.')
@@ -277,6 +287,16 @@ class NEREditor(QWidget):
 
     def loadNextFile(self):
         logger.debug(f'Action Track: loadNextFile.')
+
+        if self.isContainRecommendEntity():
+            QMessageBox.warning(
+                self,
+                '提示信息',
+                '文本中包含未确认的推荐实体，请确认之后再标注下一个文件！',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+            return
         
         if self.currentFilePathIndex < self.allFileNum-1:
             self.currentFilePathIndex += 1
@@ -289,17 +309,31 @@ class NEREditor(QWidget):
                 QMessageBox.Ok,
                 QMessageBox.Ok,
             )
+
+    def isContainRecommendEntity(self):
+        items = list(re.finditer(TagEnum.RECOMMENDENTITY.value, self.getContent()))
+        print(len(items))
+
+        return False if len(items) == 0 else True
     
-    def autoLoadNewFile(self, filename):
+    def autoLoadNewFile(self, filename, scrollBarValue=0):
         logger.debug(f'Action Track: autoLoadNewFile.')
         
         if filename:
             content = self.readFile(filename)
-            self.ui.fileLabel.setText(
-                f'{self.currentFilePathIndex+1}/{self.allFileNum} '
-                f'File: {filename}'
-            )
             self.ui.textEdit.setText(content)
+            self.ui.fileLabel.setText(f'文件位置: {filename}')
+            self.ui.textEdit.verticalScrollBar().setValue(scrollBarValue)
+            self.ui.progressButton.setText(f'标注进度: {self.currentFilePathIndex+1}/{self.allFileNum}')
+
+    def splitSent(self):
+        QMessageBox.information(
+            self,
+            '提示信息',
+            '暂未实现该功能！\n如有需要，请联系https://github.com/chenchengshuai/NERAnnotator',
+            QMessageBox.Ok,
+            QMessageBox.Ok,
+        )
 
     def keyPressEvent(self, event):
         logger.debug(f'Action Track: keyPressEvent.')
@@ -334,7 +368,7 @@ class NEREditor(QWidget):
             if not self._checkSelectedContent(selectedContent):
                 return 
 
-            self.processContentForSelected(
+            content = self.processContentForSelected(
                 pressKey,
                 content,
                 selectedContent,
@@ -342,10 +376,16 @@ class NEREditor(QWidget):
                 selectedEndIndex
             )
         else:
-            self.processContentForNotSelected(
+            content = self.processContentForNotSelected(
                 pressKey,
                 content,
             )
+        
+        # 获取滚动条位置
+        scrollBarValue = self.ui.textEdit.verticalScrollBar().value()
+        
+        if content:
+            self.writeFile(self.filename, content, scrollBarValue)
 
     def _checkSelectedContent(self, selectedContent):
         """不允许待标注文本内包含已标注实体
@@ -353,13 +393,14 @@ class NEREditor(QWidget):
         Args:
             selectedContent (_type_): _description_
         """
-        print(self.__repr__())
+        
         logger.debug(f'Action Track: _checkSelectedContent')
 
         if '[' in selectedContent \
             or ']' in selectedContent \
             or '\n' in selectedContent \
-            or '\r' in selectedContent:
+            or '\r' in selectedContent \
+            or len(selectedContent) == 1:
             logger.warning(f'unfair selected content.')
             return None
         
@@ -407,15 +448,15 @@ class NEREditor(QWidget):
                 )
             selectedContent = self.replaceContent(selectedContent, pressKey)
         else:
-            return 
-        
+            return
+
         content = ''.join([
                 aboveHalhContent,
                 selectedContent,
                 bellowHalfContent
             ])
-            
-        self.writeFile(self.filename, content)
+
+        return content
     
     def processContentForNotSelected(
         self, 
@@ -491,13 +532,7 @@ class NEREditor(QWidget):
                 bellowHalfBlockContent,
             ])
                 
-            self.writeFile(self.filename, content)    
-  
-    def confirmTaggedEntity(self):
-        pass
-    
-    def cancelTaggedEntity(self):
-        pass
+            return content 
         
     def addRecommendContent(self, entity_name, pressKey, bellowHalfContent):
         """_summary_
@@ -599,6 +634,81 @@ class NEREditor(QWidget):
         
         return content
     
+    def generateSequenceFile(self):
+        if not self.filename:
+            QMessageBox.warning(
+                self,
+                '提示信息',
+                '先点击open按钮加载文件！',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+            return -1
+
+        if ('.ann' not in self.filename) and ('.txt' not in self.filename):
+            QMessageBox.warning(
+                self,
+                '提示信息',
+                'Export only works on filename ended in .ann or .txt!\nPlease rename file.',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+            return -1
+        
+        statusCode, message = self.writeSequenceToFile()
+
+        if statusCode == 0:
+            QMessageBox.information(
+                self,
+                '提示信息',
+                f'Exported file successfully!\nSaved to File: {message}',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                '提示信息',
+                f'{message}',
+                QMessageBox.Ok,
+                QMessageBox.Ok,
+            )
+
+    def writeSequenceToFile(self):
+        try:
+            newFilename = self.filename + 's'
+
+            with open(self.filename) as fin, \
+                open(newFilename, 'w') as fout:
+                for line in fin:
+                    line = line.strip()
+                    
+                    startIdx = 0
+                    tagList = []
+                    contentList = []
+                    entityItems = list(re.finditer(TagEnum.TAGGEDENTITY.value, line))
+
+                    for item in entityItems:
+                        tagList.extend(['O'] * len(line[startIdx: item.start()]))
+                        contentList.extend(list(line[startIdx: item.start()]))
+                        
+                        entityName, entityType = item.group().strip('[@*]').split('#')
+                        contentList.extend(list(entityName))
+                        tagList.extend([f'B-{entityType}'] + [f'I-{entityType}'] * len(entityName[1:]))
+
+                        startIdx = item.end()
+                    
+                    tagList.extend(['O'] * len(line[startIdx: ]))
+                    contentList.extend(list(line[startIdx: ]))
+
+                    for token, tag in zip(contentList, tagList):
+                        fout.write(' '.join([token, tag]) + '\n')
+                    fout.write('\n')
+
+            return 0, newFilename
+        except Exception as e:
+            return -1, e
+
     def clearCommand(self):
         pass
         
@@ -651,6 +761,7 @@ class NEREditor(QWidget):
         
         
 app = QApplication(sys.argv)
+app.setStyle('Windows')
 ner_editor = NEREditor()
 ner_editor.show()
 sys.exit(app.exec_())
