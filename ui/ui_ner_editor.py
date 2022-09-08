@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'ner_editor.ui'
+# Form implementation generated from reading ui file '/Users/mac/work/NERAnnotator/ui/ner_editor.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.4
 #

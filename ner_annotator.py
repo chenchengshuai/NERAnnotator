@@ -766,7 +766,7 @@ class NEREditor(QWidget):
         
         
 app = QApplication(sys.argv)
-app.setStyle('Windows')
+# app.setStyle('Windows')
 ner_editor = NEREditor()
 ner_editor.show()
 sys.exit(app.exec_())
