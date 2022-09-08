@@ -79,13 +79,12 @@ class NEREditor(QWidget):
         self.ui = Ui_NEREditor()
         self.ui.setupUi(self)
 
+        self.allFileNum = 0
         self.filename = None
         self.allFilePathCache = []
-        self.allFileNum = 0
         self.currentFilePathIndex = -1
         self.backup = deque(maxlen=20)
-        # self.currentContent = deque(maxlen=1)
-        
+
         self.pressCommand = {}
         
         # 标注快捷键
@@ -104,34 +103,32 @@ class NEREditor(QWidget):
             Qt.Key_X: 'x', Qt.Key_Y: 'y', Qt.Key_Z: 'z',
         }
 
-        # 设置鼠标指针样式
-        self.setCursor(Qt.UpArrowCursor) 
-        # 设置字体
-        self.ui.textEdit.setFontFamily('黑体')
-        # 设置字号
-        self.ui.textEdit.setFontPointSize(18)
-        self.ui.textEdit.setPlaceholderText('文本标注区')
-        self.ui.configFileButton.addItems(self._loadConfigFiles())
-        self.ui.textEdit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.highlighter = FontHighlighter(self.ui.textEdit.document())
-       
-        self.ui.openButton.clicked.connect(self.onOpen)
-        self.ui.quitButton.clicked.connect(self.quit)
-        self.ui.fontSetButton.clicked.connect(self.setFont)
-        self.ui.exportButton.clicked.connect(self.generateSequenceFile)
-        self.ui.configFileButton.activated.connect(self._initConfig)
-        self.ui.useREButton.stateChanged.connect(self.REButtonInfo)
-        self.ui.splitSentButton.clicked.connect(self.splitSent)
-        self.ui.lastFileButton.clicked.connect(self.loadLastFile)
-        self.ui.nextFileButton.clicked.connect(self.loadNextFile)
-        
+        self.setCursor(Qt.UpArrowCursor)                                    # 指针样式
+        self.ui.textEdit.setFontFamily('黑体')                               # 字体设置
+        self.ui.textEdit.setFontPointSize(18)                               # 字号设置
+        self.ui.textEdit.setPlaceholderText('文本标注区')                     # 标注区
+        self.ui.configFileButton.addItems(self._loadConfigFiles())          # 配置文件
+        self.highlighter = FontHighlighter(self.ui.textEdit.document())     # 字体高亮
+        self.ui.textEdit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)   # 滚动条显示
+
+        self.ui.quitButton.clicked.connect(self.quit)                       # 退出按钮
+        self.ui.openButton.clicked.connect(self.onOpen)                     # 打开按钮
+        self.ui.fontSetButton.clicked.connect(self.setFont)                 # 字体设置按钮
+        self.ui.splitSentButton.clicked.connect(self.splitSent)             # 分句按钮
+        self.ui.lastFileButton.clicked.connect(self.loadLastFile)           # 上一个文件
+        self.ui.nextFileButton.clicked.connect(self.loadNextFile)           # 下一个文件
+        self.ui.useREButton.stateChanged.connect(self.REButtonInfo)         # 推荐按钮
+        self.ui.configFileButton.activated.connect(self._initConfig)        # 配置文件
+        self.ui.exportButton.clicked.connect(self.generateSequenceFile)     # 文件导出按钮
+
         self._initConfig()
     
     def _initConfig(self):
+        """ 初始化 """
+
         logger.debug(f'Action Track: _initConfig.')
         
         filename = self.ui.configFileButton.currentText()
-        
         try:
             with open(os.path.join(self.configRootDir, filename)) as fin:
                 self.pressCommand = json.load(fin)
@@ -150,11 +147,15 @@ class NEREditor(QWidget):
         self._initGridLayout()
     
     def _loadConfigFiles(self):
+        """ 加载标签配置文件名称 """
+        
         logger.debug(f'Action Track: _loadConfigFiles.')
         
         return sorted(os.listdir(self.configRootDir))
 
     def _checkConfig(self):
+        """ 检查配置文件 """
+
         logger.debug(f'Action Track: _checkConfig.')
         
         excluded_tags = {'y', 'q'}
@@ -170,6 +171,8 @@ class NEREditor(QWidget):
                 exit()
   
     def _clearGridLayout(self):
+        """ 清除标签映射区域 """
+
         logger.debug(f'Action Track: _clearGridLayout.')
         
         item_list = list(range(self.ui.gridLayout_4.count()))
@@ -182,6 +185,8 @@ class NEREditor(QWidget):
                 item.widget().deleteLater()
                 
     def _initGridLayout(self):
+        """ 初始化标签映射区域 """
+
         logger.debug(f'Action Track: _initGridLayout.')
         
         for idx, (shortcut, e_type) in enumerate(self.pressCommand.items()):
